@@ -1,258 +1,86 @@
-\# 🇲🇦 Darija Translator — LLM-Powered RESTful Web Service
+# Darija Translator
 
+A REST API that translates English into Moroccan Darija using GPT-4o-mini. I built this for a distributed systems course — the actual goal was to practice multi-client architecture, the translation part was just a good excuse.
 
+The backend is Jakarta EE (JAX-RS) deployed on WildFly. Five different clients all hit the same endpoint: a Chrome extension with a side panel, a React Native app, a PHP web UI, a Python script, and cURL.
 
-An LLM-powered translation service that translates English text into Moroccan Arabic Dialect (Darija). Built with \*\*Jakarta EE RESTful Web Services\*\* and deployed on \*\*WildFly 39\*\*.
+![Chrome extension side panel](screenshots/chrome-extension.png)
 
+---
 
+## How it works
 
-\## Architecture
+Every request goes through two layers before hitting the translation logic:
 
+1. A servlet filter (`@WebFilter`) adds CORS headers and kills OPTIONS preflights early — this has to happen at the servlet layer, before JAX-RS, otherwise browser preflight requests never complete
+2. A JAX-RS `ContainerRequestFilter` checks for a valid Bearer token — no token, no translation
 
+After that, `TranslateResource` takes the text, builds a prompt, calls the OpenAI API using Java's built-in `HttpClient`, parses the response with Jakarta JSON-P, and returns the Darija translation.
 
-```
+---
 
-\[Chrome Extension]  ──┐
+## Stack
 
-\[Python Client]     ──┤
+Backend is Java 17 + Jakarta REST on WildFly 39, built with Maven. LLM is GPT-4o-mini. Clients are Chrome (Manifest V3), React Native, Python, and PHP.
 
-\[PHP Client]        ──┼──► \[Jakarta REST API on WildFly] ──► \[OpenAI GPT-4o-mini]
+---
 
-\[React Native App]  ──┤
+## Running it locally
 
-\[Postman/cURL]      ──┘
-
-```
-
-
-
-\## Tech Stack
-
-
-
-| Component | Technology |
-
-|-----------|-----------|
-
-| Backend | Java 17, Jakarta RESTful Web Services (JAX-RS), WildFly 39 |
-
-| LLM | OpenAI GPT-4o-mini via REST API |
-
-| Chrome Extension | Manifest V3, Side Panel API, Context Menus |
-
-| Python Client | Python 3, requests library |
-
-| PHP Client | PHP 8, file\_get\_contents with stream context |
-
-| Mobile App | React Native |
-
-| Build Tool | Maven |
-
-
-
-\## Project Structure
-
-
-
-```
-
-├── darija-translator/          # Maven project (Jakarta REST backend)
-
-│   └── src/main/java/ma/aui/cs/
-
-│       ├── RestApplication.java        # JAX-RS application config (@ApplicationPath)
-
-│       ├── TranslateResource.java      # /api/translate endpoint (@POST)
-
-│       └── CorsServletFilter.java      # CORS headers for cross-origin requests
-
-├── darija-chrome-extension/    # Chrome extension (Manifest V3)
-
-│   ├── manifest.json
-
-│   ├── background.js
-
-│   ├── sidepanel.html
-
-│   └── sidepanel.js
-
-├── python-client/              # Python client
-
-│   └── translator\_client.py
-
-├── php-client/                 # PHP client with web UI
-
-│   └── index.php
-
-└── react-native-app/           # React Native mobile client
-
-&#x20;   └── App.js
-
-```
-
-
-
-\## Setup \& Running
-
-
-
-\### 1. Backend (WildFly)
-
-
+You need Java 17, Maven, and WildFly 39.
 
 ```bash
-
-\# Set your OpenAI API key
-
-set OPENAI\_API\_KEY=your-key-here    # Windows
-
-export OPENAI\_API\_KEY=your-key-here # Mac/Linux
-
-
-
-\# Build the WAR
+export OPENAI_API_KEY=your-key
+export API_TOKEN=your-token
 
 cd darija-translator
-
 mvn clean package
-
-
-
-\# Copy WAR to WildFly and start
-
-cp target/darija-translator.war <WILDFLY\_HOME>/standalone/deployments/
-
-<WILDFLY\_HOME>/bin/standalone.bat   # Windows
-
-<WILDFLY\_HOME>/bin/standalone.sh    # Mac/Linux
-
+cp target/darija-translator.war $WILDFLY_HOME/standalone/deployments/
+$WILDFLY_HOME/bin/standalone.sh
 ```
 
-
-
-\### 2. Test with cURL
-
-
+Test it:
 
 ```bash
-
-curl -X POST http://localhost:8080/darija-translator/api/translate \\
-
-&#x20; -H "Content-Type: application/json" \\
-
-&#x20; -d '{"text": "Hello, how are you?"}'
-
+curl -X POST http://localhost:8080/darija-translator/api/translate \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-token" \
+  -d '{"text": "How are you?"}'
 ```
 
+Returns `{"translation":"كيداير؟"}` if everything is running.
 
+For the Chrome extension: go to `chrome://extensions/`, enable developer mode, load unpacked, point it at the `darija-chrome-extension/` folder. Then highlight any text on a page, right-click, and hit "Translate to Darija".
 
-\### 3. Chrome Extension
+Python client: `pip install requests` then run `python python-client/translator_client.py`.
 
+PHP client: `cd php-client && php -S localhost:8000`.
 
+---
 
-1\. Open `chrome://extensions/`
-
-2\. Enable "Developer mode"
-
-3\. Click "Load unpacked" → select the `darija-chrome-extension` folder
-
-4\. Select text on any page → Right-click → "Translate to Darija"
-
-
-
-\### 4. Python Client
-
-
-
-```bash
-
-pip install requests
-
-python python-client/translator\_client.py
+## Structure
 
 ```
+darija-translator/src/main/java/ma/aui/cs/
+├── RestApplication.java      # sets /api as the base path
+├── TranslateResource.java    # POST /api/translate
+├── AuthFilter.java           # bearer token check
+└── CorsServletFilter.java    # cors + preflight handling
 
-
-
-\### 5. PHP Client
-
-
-
-```bash
-
-cd php-client
-
-php -S localhost:8000
-
-\# Open http://localhost:8000 in browser
-
+darija-chrome-extension/      # manifest v3 side panel + context menu
+react-native-app/
+python-client/
+php-client/
 ```
 
+---
 
+## What was actually hard
 
-\### 6. React Native App
+CORS with multiple clients was annoying. The filter has to intercept OPTIONS requests before JAX-RS sees them — if you let JAX-RS handle it, the preflight fails and the browser won't send the real request. Took me a bit to figure out that `chain.doFilter()` needs to be skipped entirely for OPTIONS, not just have the headers added.
 
+WildFly deployment was also not smooth — WAR file structure, application path conflicts, and getting environment variables passed in correctly took more time than the actual translation logic.
 
+---
 
-```bash
-
-cd react-native-app
-
-npx react-native run-android  # or run-ios
-
-```
-
-
-
-\## API Endpoint
-
-
-
-\*\*POST\*\* `/api/translate`
-
-
-
-\*\*Request:\*\*
-
-```json
-
-{
-
-&#x20; "text": "Hello, how are you?"
-
-}
-
-```
-
-
-
-\*\*Response:\*\*
-
-```json
-
-{
-
-&#x20; "translation": "سلام، كيداير؟"
-
-}
-
-```
-
-
-
-\## Course
-
-
-
-CSC3374 — Distributed Systems, Al Akhawayn University in Ifrane
-
-Professor El Habib Nfaoui
-
-
-
-\## Author
-
-
-
-Riad Lahrichi
-
+Built for CSC3374 — Advanced Distributed Programming Paradigms, Al Akhawayn University in Ifrane.
