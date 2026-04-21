@@ -74,11 +74,7 @@ php-client/
 
 ---
 
-## What was actually hard
 
-CORS with multiple clients was annoying. The filter has to intercept OPTIONS requests before JAX-RS sees them — if you let JAX-RS handle it, the preflight fails and the browser won't send the real request. Took me a bit to figure out that `chain.doFilter()` needs to be skipped entirely for OPTIONS, not just have the headers added.
-
-WildFly deployment was also not smooth — WAR file structure, application path conflicts, and getting environment variables passed in correctly took more time than the actual translation logic.
 
 ---
 
