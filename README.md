@@ -4,8 +4,7 @@ A REST API that translates English into Moroccan Darija using GPT-4o-mini. I bui
 
 The backend is Jakarta EE (JAX-RS) deployed on WildFly. Five different clients all hit the same endpoint: a Chrome extension with a side panel, a React Native app, a PHP web UI, a Python script, and cURL.
 
-![Chrome extension side panel](screenshots/chrome-extension.png)
-
+![Chrome extension side panel](darija.png)
 ---
 
 ## How it works
